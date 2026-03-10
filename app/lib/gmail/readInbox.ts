@@ -14,7 +14,7 @@ function getGmailClient() {
     const oauth2Client = new google.auth.OAuth2(
         process.env.GMAIL_CLIENT_ID,
         process.env.GMAIL_CLIENT_SECRET,
-        "http://localhost:3000/api/auth/gmail/callback"
+        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/gmail/callback`
     )
 
     oauth2Client.setCredentials(tokens)
