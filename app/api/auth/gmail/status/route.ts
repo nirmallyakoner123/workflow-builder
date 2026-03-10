@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
+import { cookies } from "next/headers"
 
 export async function GET() {
-    const tokenPath = path.join(process.cwd(), "gmail_tokens.json")
-    const connected = fs.existsSync(tokenPath)
+    const cookieStore = await cookies()
+    const connected = !!cookieStore.get("gmail_tokens")?.value
     return NextResponse.json({ connected })
 }

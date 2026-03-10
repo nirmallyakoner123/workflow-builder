@@ -1,15 +1,17 @@
 import { google } from "googleapis"
-import fs from "fs"
-import path from "path"
+import { cookies } from "next/headers"
 
-function getGmailClient() {
-    const tokenPath = path.join(process.cwd(), "gmail_tokens.json")
-
-    if (!fs.existsSync(tokenPath)) {
-        throw new Error("Not authenticated with Gmail. Visit /api/auth/gmail first.")
+async function getTokens() {
+    const cookieStore = await cookies()
+    const raw = cookieStore.get("gmail_tokens")?.value
+    if (!raw) {
+        throw new Error("Not authenticated with Gmail. Click 'Connect to Google' first.")
     }
+    return JSON.parse(raw)
+}
 
-    const tokens = JSON.parse(fs.readFileSync(tokenPath, "utf-8"))
+async function getGmailClient() {
+    const tokens = await getTokens()
 
     const oauth2Client = new google.auth.OAuth2(
         process.env.GMAIL_CLIENT_ID,
@@ -22,7 +24,7 @@ function getGmailClient() {
 }
 
 export async function readUnreadEmails() {
-    const gmail = getGmailClient()
+    const gmail = await getGmailClient()
 
     const res = await gmail.users.messages.list({
         userId: "me",
@@ -62,7 +64,7 @@ export async function readUnreadEmails() {
 }
 
 export async function sendEmailWithGmail(to: string, subject: string, body: string) {
-    const gmail = getGmailClient()
+    const gmail = await getGmailClient()
 
     const rawMessage = [
         `To: ${to}`,

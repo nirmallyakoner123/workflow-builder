@@ -1,7 +1,5 @@
 import { google } from "googleapis"
 import { NextRequest, NextResponse } from "next/server"
-import fs from "fs"
-import path from "path"
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
@@ -20,10 +18,15 @@ export async function GET(req: NextRequest) {
 
     const { tokens } = await oauth2Client.getToken(code)
 
-    // Store tokens to a local file (for dev purposes)
-    // In production, store in a DB tied to the user's session
-    const tokenPath = path.join(process.cwd(), "gmail_tokens.json")
-    fs.writeFileSync(tokenPath, JSON.stringify(tokens, null, 2))
+    // Store tokens in an HTTP-only cookie (works on Vercel, no filesystem needed)
+    const response = NextResponse.redirect(BASE_URL)
+    response.cookies.set("gmail_tokens", JSON.stringify(tokens), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        path: "/",
+    })
 
-    return NextResponse.redirect(BASE_URL)
+    return response
 }
