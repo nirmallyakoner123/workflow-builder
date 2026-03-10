@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         }
 
         const workflow = await req.json()
-        const result = await runWorkflow(workflow, session.provider_token)
+        const result = await runWorkflow(workflow, session.provider_token, session.user.email)
         return Response.json({ status: "ok", ...result })
     } catch (err: any) {
         return Response.json({ status: "error", message: err.message }, { status: 500 })
