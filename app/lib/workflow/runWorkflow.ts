@@ -1,6 +1,5 @@
 import { readUnreadEmails, sendEmailWithGmail } from "../gmail/readInbox"
 import { generateReply } from "../ai/generateReply"
-import { createClient } from "@supabase/supabase-js"
 
 // Types for workflow nodes/edges
 interface WorkflowNode {
@@ -40,7 +39,7 @@ export interface ApprovalPayload {
     generatedReply: string
 }
 
-export async function runWorkflow(workflow: Workflow, providerToken: string, userEmail?: string): Promise<WorkflowResult> {
+export async function runWorkflow(workflow: Workflow, providerToken: string, githubSettings?: { github_username?: string, github_token?: string } | null): Promise<WorkflowResult> {
     // Build an execution order by following edges from start
     const adjacency = new Map<string, string>()
     for (const edge of workflow.edges) {
@@ -102,34 +101,29 @@ export async function runWorkflow(workflow: Workflow, providerToken: string, use
 
                 // Fetch GitHub context if available
                 let githubContext = null
-                if (userEmail) {
+                if (githubSettings?.github_username) {
                     try {
-                        const adminClient = createClient(
-                            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                            process.env.SUPABASE_SERVICE_ROLE_KEY!
-                        )
-                        const { data: settings } = await adminClient
-                            .from("user_settings")
-                            .select("github_username, github_token")
-                            .eq("user_email", userEmail)
-                            .single()
+                        const headers: Record<string, string> = { "User-Agent": "Workflow-Builder" }
+                        if (githubSettings.github_token) {
+                            headers["Authorization"] = `token ${githubSettings.github_token}`
+                        }
 
-                        if (settings?.github_username) {
-                            const headers: Record<string, string> = { "User-Agent": "Workflow-Builder" }
-                            if (settings.github_token) {
-                                headers["Authorization"] = `token ${settings.github_token}`
-                            }
+                        console.log(`Fetching GitHub context for ${githubSettings.github_username}...`)
+                        const ghRes = await fetch(`https://api.github.com/users/${githubSettings.github_username}/events/public`, { headers })
+                        if (ghRes.ok) {
+                            const events = await ghRes.json()
+                            const pushEvents = events.filter((e: any) => e.type === "PushEvent").slice(0, 5)
+                            githubContext = pushEvents.map((e: any) => {
+                                const repo = e.repo.name
+                                const msgs = e.payload.commits.map((c: any) => `- ${c.message}`).join("\n")
+                                return `Repository: ${repo}\nCommits:\n${msgs}`
+                            }).join("\n\n")
 
-                            const ghRes = await fetch(`https://api.github.com/users/${settings.github_username}/events/public`, { headers })
-                            if (ghRes.ok) {
-                                const events = await ghRes.json()
-                                const pushEvents = events.filter((e: any) => e.type === "PushEvent").slice(0, 5)
-                                githubContext = pushEvents.map((e: any) => {
-                                    const repo = e.repo.name
-                                    const msgs = e.payload.commits.map((c: any) => `- ${c.message}`).join("\n")
-                                    return `Repository: ${repo}\nCommits:\n${msgs}`
-                                }).join("\n\n")
-                            }
+                            console.log("\n--- [BRAIN] FETCHED GITHUB CONTEXT ---")
+                            console.log(githubContext || "No recent commits found.")
+                            console.log("--------------------------------------\n")
+                        } else {
+                            console.error("GitHub API Error:", await ghRes.text())
                         }
                     } catch (e) {
                         console.error("Failed to fetch GitHub context", e)
