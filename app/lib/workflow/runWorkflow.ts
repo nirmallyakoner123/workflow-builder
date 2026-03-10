@@ -115,7 +115,7 @@ export async function runWorkflow(workflow: Workflow, providerToken: string, git
                             const pushEvents = events.filter((e: any) => e.type === "PushEvent").slice(0, 5)
                             githubContext = pushEvents.map((e: any) => {
                                 const repo = e.repo.name
-                                const msgs = e.payload.commits.map((c: any) => `- ${c.message}`).join("\n")
+                                const msgs = (e.payload.commits || []).map((c: any) => `- ${c.message}`).join("\n")
                                 return `Repository: ${repo}\nCommits:\n${msgs}`
                             }).join("\n\n")
 
