@@ -79,8 +79,9 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowResult> {
             }
 
             case "read_email": {
-                context.emails = await readUnreadEmails()
-                // Use first unread email for processing
+                const query = (node.data?.query as string) || "is:unread"
+                context.emails = await readUnreadEmails(query)
+                // Use first email matching the query (if any)
                 context.currentEmail = context.emails[0]
                 stepResults.push({
                     nodeId: node.id,
@@ -96,7 +97,8 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowResult> {
                     stepResults.push({ nodeId: node.id, type: "generate_reply", status: "skipped" })
                     break
                 }
-                context.reply = await generateReply(context.currentEmail.body)
+                const prompt = (node.data?.prompt as string) || "Write a polite and professional reply."
+                context.reply = await generateReply(context.currentEmail.body, prompt)
                 stepResults.push({
                     nodeId: node.id,
                     type: "generate_reply",

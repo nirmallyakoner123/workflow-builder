@@ -23,12 +23,12 @@ async function getGmailClient() {
     return google.gmail({ version: "v1", auth: oauth2Client })
 }
 
-export async function readUnreadEmails() {
+export async function readUnreadEmails(query: string = "is:unread") {
     const gmail = await getGmailClient()
 
     const res = await gmail.users.messages.list({
         userId: "me",
-        q: "is:unread",
+        q: query,
         maxResults: 5,
     })
 

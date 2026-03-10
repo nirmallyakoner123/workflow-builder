@@ -18,6 +18,7 @@ import "@xyflow/react/dist/style.css"
 
 import { useCallback, useRef, useState } from "react"
 import CustomNode from "./CustomNode"
+import PropertiesPanel from "./PropertiesPanel"
 
 const nodeTypes = {
   custom: CustomNode,
@@ -55,6 +56,23 @@ export default function Workflow() {
   const [running, setRunning] = useState(false)
   const [runLog, setRunLog] = useState<string[]>([])
   const [approval, setApproval] = useState<ApprovalPayload | null>(null)
+
+  const [workflowId, setWorkflowId] = useState<string | null>(null)
+  const [workflowName, setWorkflowName] = useState("My Workflow")
+  const [isSaving, setIsSaving] = useState(false)
+
+  const selectedNode = nodes.find((n) => n.selected) || null
+
+  const updateNodeData = useCallback((nodeId: string, newData: any) => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === nodeId) {
+          return { ...n, data: newData }
+        }
+        return n
+      })
+    )
+  }, [setNodes])
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -103,6 +121,58 @@ export default function Workflow() {
 
   const isValidConnection = (connection: Edge | Connection) => {
     return connection.source !== connection.target
+  }
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      const res = await fetch("/api/workflows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: workflowId,
+          name: workflowName,
+          nodes,
+          edges,
+        }),
+      })
+      const data = await res.json()
+      if (data.workflow) {
+        setWorkflowId(data.workflow.id)
+        alert("Workflow saved successfully!")
+      } else {
+        alert("Error saving workflow: " + data.error)
+      }
+    } catch (err: any) {
+      alert("Network error: " + err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleLoad = async () => {
+    try {
+      const res = await fetch("/api/workflows")
+      const data = await res.json()
+      
+      if (data.workflows && data.workflows.length > 0) {
+        // Just load the most recently updated one for now
+        const latest = data.workflows[0]
+        const detailRes = await fetch(`/api/workflows/${latest.id}`)
+        const detailData = await detailRes.json()
+
+        if (detailData.workflow) {
+          setWorkflowId(detailData.workflow.id)
+          setWorkflowName(detailData.workflow.name)
+          setNodes(detailData.workflow.nodes)
+          setEdges(detailData.workflow.edges)
+        }
+      } else {
+        alert("No saved workflows found.")
+      }
+    } catch (err: any) {
+      alert("Error loading workflow: " + err.message)
+    }
   }
 
   const handleRun = async () => {
@@ -171,8 +241,9 @@ export default function Workflow() {
   }
 
   return (
-    <div ref={reactFlowWrapper} style={{ flex: 1, height: "100vh", position: "relative" }}>
-      <ReactFlow
+    <>
+      <div ref={reactFlowWrapper} style={{ flex: 1, height: "100vh", position: "relative" }}>
+        <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
@@ -207,6 +278,29 @@ export default function Workflow() {
           >
             {running ? "⏳ Running…" : "▶ Run Workflow"}
           </button>
+        </Panel>
+
+        {/* ── SAVE/LOAD ── */}
+        <Panel position="top-left" style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid #cbd5e1", background: "white", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+          >
+            {isSaving ? "Saving..." : "💾 Save"}
+          </button>
+          <button
+            onClick={handleLoad}
+            style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid #cbd5e1", background: "white", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+          >
+            📂 Load Latest
+          </button>
+          <input
+            type="text"
+            value={workflowName}
+            onChange={(e) => setWorkflowName(e.target.value)}
+            style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, width: 200 }}
+          />
         </Panel>
 
         {/* ── Run log panel ── */}
@@ -304,7 +398,10 @@ export default function Workflow() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+
+      <PropertiesPanel selectedNode={selectedNode} updateNodeData={updateNodeData} />
+    </>
   )
 }
 
