@@ -26,7 +26,7 @@ async function getUserEmail() {
 }
 
 // GET a specific workflow by ID
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const email = await getUserEmail()
     if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
