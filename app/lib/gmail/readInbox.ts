@@ -43,6 +43,13 @@ export async function readUnreadEmails(providerToken: string, query: string = "i
                 body = Buffer.from(detail.data.payload.body.data, "base64").toString("utf-8")
             }
 
+            // Simple cleanup: try to remove quoted history lines (lines starting with '>')
+            // and trim excessive whitespace to give the AI a cleaner email to read.
+            body = body.split('\n')
+                .filter(line => !line.trim().startsWith('>'))
+                .join('\n')
+                .trim()
+
             return { id: msg.id, subject, from, body }
         })
     )
