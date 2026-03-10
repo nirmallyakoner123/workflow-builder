@@ -1,30 +1,18 @@
 import { google } from "googleapis"
-import { cookies } from "next/headers"
 
-async function getTokens() {
-    const cookieStore = await cookies()
-    const raw = cookieStore.get("gmail_tokens")?.value
-    if (!raw) {
-        throw new Error("Not authenticated with Gmail. Click 'Connect to Google' first.")
-    }
-    return JSON.parse(raw)
-}
-
-async function getGmailClient() {
-    const tokens = await getTokens()
-
+// Token is now passed in from the Supabase session (provider_token),
+// not read from cookies anymore.
+function getGmailClient(providerToken: string) {
     const oauth2Client = new google.auth.OAuth2(
         process.env.GMAIL_CLIENT_ID,
         process.env.GMAIL_CLIENT_SECRET,
-        `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/gmail/callback`
     )
-
-    oauth2Client.setCredentials(tokens)
+    oauth2Client.setCredentials({ access_token: providerToken })
     return google.gmail({ version: "v1", auth: oauth2Client })
 }
 
-export async function readUnreadEmails(query: string = "is:unread") {
-    const gmail = await getGmailClient()
+export async function readUnreadEmails(providerToken: string, query: string = "is:unread") {
+    const gmail = getGmailClient(providerToken)
 
     const res = await gmail.users.messages.list({
         userId: "me",
@@ -46,7 +34,6 @@ export async function readUnreadEmails(query: string = "is:unread") {
             const subject = headers.find((h) => h.name === "Subject")?.value || "(no subject)"
             const from = headers.find((h) => h.name === "From")?.value || ""
 
-            // Decode body
             const parts = detail.data.payload?.parts || []
             let body = ""
             const textPart = parts.find((p) => p.mimeType === "text/plain")
@@ -63,8 +50,8 @@ export async function readUnreadEmails(query: string = "is:unread") {
     return emails
 }
 
-export async function sendEmailWithGmail(to: string, subject: string, body: string) {
-    const gmail = await getGmailClient()
+export async function sendEmailWithGmail(providerToken: string, to: string, subject: string, body: string) {
+    const gmail = getGmailClient(providerToken)
 
     const rawMessage = [
         `To: ${to}`,

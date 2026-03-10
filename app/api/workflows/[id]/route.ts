@@ -1,37 +1,24 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { supabase } from "@/app/lib/supabase"
-import { google } from "googleapis"
+import { createClient } from "@/app/lib/supabase-server"
+import { createClient as createBrowserClient } from "@supabase/supabase-js"
 
-async function getUserEmail() {
-    const cookieStore = await cookies()
-    const raw = cookieStore.get("gmail_tokens")?.value
-    if (!raw) return null
-
-    try {
-        const tokens = JSON.parse(raw)
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GMAIL_CLIENT_ID,
-            process.env.GMAIL_CLIENT_SECRET,
-            `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/gmail/callback`
-        )
-        oauth2Client.setCredentials(tokens)
-
-        const peopleService = google.oauth2({ version: "v2", auth: oauth2Client })
-        const { data } = await peopleService.userinfo.get()
-        return data.email || null
-    } catch {
-        return null
-    }
+function getAdminSupabaseWithToken(accessToken: string) {
+    return createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+    )
 }
 
-// GET a specific workflow by ID
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-    const email = await getUserEmail()
-    if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const serverClient = await createClient()
+    const { data: { session } } = await serverClient.auth.getSession()
 
-    // Since Next 15 params must be awaited
-    const { id } = await params;
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const supabase = getAdminSupabaseWithToken(session.access_token)
+    const email = session.user.email!
+    const { id } = await params
 
     const { data, error } = await supabase
         .from("workflows")

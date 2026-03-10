@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { createClient } from "@/app/lib/supabase"
 
 interface Profile {
   name: string
@@ -10,15 +11,52 @@ interface Profile {
 
 export default function NodePalette() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const supabase = createClient()
 
   useEffect(() => {
-    fetch("/api/auth/gmail/profile")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.connected) setProfile({ name: d.name, email: d.email, picture: d.picture })
-      })
-      .catch(() => {})
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setProfile({
+          name: session.user.user_metadata?.full_name || session.user.email || "",
+          email: session.user.email || "",
+          picture: session.user.user_metadata?.avatar_url || "",
+        })
+      }
+    })
+
+    // Listen for auth changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setProfile({
+          name: session.user.user_metadata?.full_name || session.user.email || "",
+          email: session.user.email || "",
+          picture: session.user.user_metadata?.avatar_url || "",
+        })
+      } else {
+        setProfile(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
+
+  const handleConnect = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        scopes: [
+          "https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/gmail.send",
+        ].join(" "),
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setProfile(null)
+  }
 
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData("application/reactflow", nodeType)
@@ -76,38 +114,53 @@ export default function NodePalette() {
 
       <div style={{ flex: 1 }} />
 
-      {/* === Profile card when connected, or Connect button === */}
       {profile ? (
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "10px 12px",
-          background: "white",
-          border: "1px solid #e2e8f0",
-          borderRadius: 10,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
-        }}>
-          <img
-            src={profile.picture}
-            alt={profile.name}
-            width={36}
-            height={36}
-            style={{ borderRadius: "50%", flexShrink: 0 }}
-            referrerPolicy="no-referrer"
-          />
-          <div style={{ overflow: "hidden" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {profile.name}
-            </div>
-            <div style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {profile.email}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            background: "white",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+          }}>
+            <img
+              src={profile.picture}
+              alt={profile.name}
+              width={36}
+              height={36}
+              style={{ borderRadius: "50%", flexShrink: 0 }}
+              referrerPolicy="no-referrer"
+            />
+            <div style={{ overflow: "hidden" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {profile.name}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {profile.email}
+              </div>
             </div>
           </div>
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: "8px",
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              background: "white",
+              fontSize: 12,
+              color: "#64748b",
+              cursor: "pointer",
+            }}
+          >
+            Sign out
+          </button>
         </div>
       ) : (
-        <a
-          href="/api/auth/gmail"
+        <button
+          onClick={handleConnect}
           style={{
             display: "flex",
             alignItems: "center",
@@ -120,10 +173,10 @@ export default function NodePalette() {
             fontWeight: 600,
             fontSize: 13,
             color: "#1e293b",
-            textDecoration: "none",
             cursor: "pointer",
             boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
             transition: "box-shadow 0.15s",
+            width: "100%",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,0,0,0.12)")}
           onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
@@ -135,7 +188,7 @@ export default function NodePalette() {
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
           Connect to Google
-        </a>
+        </button>
       )}
     </aside>
   )

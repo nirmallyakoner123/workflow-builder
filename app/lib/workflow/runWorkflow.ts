@@ -39,7 +39,7 @@ export interface ApprovalPayload {
     generatedReply: string
 }
 
-export async function runWorkflow(workflow: Workflow): Promise<WorkflowResult> {
+export async function runWorkflow(workflow: Workflow, providerToken: string): Promise<WorkflowResult> {
     // Build an execution order by following edges from start
     const adjacency = new Map<string, string>()
     for (const edge of workflow.edges) {
@@ -80,7 +80,7 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowResult> {
 
             case "read_email": {
                 const query = (node.data?.query as string) || "is:unread"
-                context.emails = await readUnreadEmails(query)
+                context.emails = await readUnreadEmails(providerToken, query)
                 // Use first email matching the query (if any)
                 context.currentEmail = context.emails[0]
                 stepResults.push({
@@ -129,6 +129,7 @@ export async function runWorkflow(workflow: Workflow): Promise<WorkflowResult> {
                     break
                 }
                 await sendEmailWithGmail(
+                    providerToken,
                     context.currentEmail.from,
                     `Re: ${context.currentEmail.subject}`,
                     context.reply

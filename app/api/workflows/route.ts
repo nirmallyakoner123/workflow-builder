@@ -1,35 +1,25 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { supabase } from "@/app/lib/supabase"
-import { google } from "googleapis"
+import { createClient } from "@/app/lib/supabase-server"
+import { createClient as createBrowserClient } from "@supabase/supabase-js"
 
-// Helper to get user email from existing Gmail OAuth cookie
-async function getUserEmail() {
-    const cookieStore = await cookies()
-    const raw = cookieStore.get("gmail_tokens")?.value
-    if (!raw) return null
-
-    try {
-        const tokens = JSON.parse(raw)
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GMAIL_CLIENT_ID,
-            process.env.GMAIL_CLIENT_SECRET,
-            `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/gmail/callback`
-        )
-        oauth2Client.setCredentials(tokens)
-
-        const peopleService = google.oauth2({ version: "v2", auth: oauth2Client })
-        const { data } = await peopleService.userinfo.get()
-        return data.email || null
-    } catch {
-        return null
-    }
+// Admin client for DB writes that respect RLS via user JWT
+function getAdminSupabaseWithToken(accessToken: string) {
+    return createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
+    )
 }
 
-// GET all workflows for the logged-in user
+// GET — list all workflows for the logged-in user
 export async function GET() {
-    const email = await getUserEmail()
-    if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const serverClient = await createClient()
+    const { data: { session } } = await serverClient.auth.getSession()
+
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const supabase = getAdminSupabaseWithToken(session.access_token)
+    const email = session.user.email!
 
     const { data, error } = await supabase
         .from("workflows")
@@ -41,21 +31,23 @@ export async function GET() {
     return NextResponse.json({ workflows: data })
 }
 
-// POST to save a workflow
+// POST — create or update a workflow
 export async function POST(req: Request) {
-    const email = await getUserEmail()
-    if (!email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const serverClient = await createClient()
+    const { data: { session } } = await serverClient.auth.getSession()
 
-    const body = await req.json()
-    const { id, name, nodes, edges } = body
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    // If ID is provided, update existing. Else insert new.
+    const supabase = getAdminSupabaseWithToken(session.access_token)
+    const email = session.user.email!
+    const { id, name, nodes, edges } = await req.json()
+
     if (id) {
         const { data, error } = await supabase
             .from("workflows")
             .update({ name, nodes, edges, updated_at: new Date().toISOString() })
             .eq("id", id)
-            .eq("user_email", email) // extra security check
+            .eq("user_email", email)
             .select()
             .single()
 
