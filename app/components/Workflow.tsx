@@ -7,6 +7,7 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   Connection,
   Edge,
   Node,
@@ -46,6 +47,7 @@ interface ApprovalPayload {
 
 export default function Workflow() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
+  const { screenToFlowPosition } = useReactFlow()
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -71,13 +73,11 @@ export default function Workflow() {
       const type = event.dataTransfer.getData("application/reactflow")
       if (!type) return
 
-      const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect()
-      if (!reactFlowBounds) return
-
-      const position = {
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      }
+      // Uses ReactFlow's built-in converter that accounts for pan + zoom
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
 
       const labelMap: Record<string, string> = {
         start:          "Start",
