@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Gmail OAuth tokens - never commit these
+gmail_tokens.json
