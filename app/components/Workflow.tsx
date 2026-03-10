@@ -184,6 +184,7 @@ export default function Workflow() {
     const workflowNodes = nodes.map((n) => ({
       id: n.id,
       type: (n.data as any).nodeType ?? n.id,
+      data: n.data,
     }))
 
     const workflowEdges = edges.map((e) => ({

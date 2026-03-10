@@ -13,13 +13,7 @@ export async function POST(req: NextRequest) {
 
         const workflow = await req.json()
 
-        const { data: settings } = await supabase
-            .from("user_settings")
-            .select("github_username, github_token")
-            .eq("user_email", session.user.email)
-            .single()
-
-        const result = await runWorkflow(workflow, session.provider_token, settings)
+        const result = await runWorkflow(workflow, session.provider_token)
         return Response.json({ status: "ok", ...result })
     } catch (err: any) {
         return Response.json({ status: "error", message: err.message }, { status: 500 })

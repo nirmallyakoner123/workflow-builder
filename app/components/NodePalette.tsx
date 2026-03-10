@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/app/lib/supabase"
-import SettingsModal from "./SettingsModal"
 
 interface Profile {
   name: string
@@ -12,7 +11,6 @@ interface Profile {
 
 export default function NodePalette() {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -145,24 +143,20 @@ export default function NodePalette() {
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setShowSettings(true)}
-              style={{
-                flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", fontSize: 12, color: "#475569", cursor: "pointer", fontWeight: 600
-              }}
-            >
-              ⚙️ Brain Settings
-            </button>
-            <button
-              onClick={handleSignOut}
-              style={{
-                flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #e2e8f0", background: "white", fontSize: 12, color: "#ef4444", cursor: "pointer", fontWeight: 600
-              }}
-            >
-              Sign out
-            </button>
-          </div>
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: "8px",
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              background: "white",
+              fontSize: 12,
+              color: "#64748b",
+              cursor: "pointer",
+            }}
+          >
+            Sign out
+          </button>
         </div>
       ) : (
         <button
@@ -196,8 +190,6 @@ export default function NodePalette() {
           Connect to Google
         </button>
       )}
-
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </aside>
   )
 }
